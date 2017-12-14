@@ -5,7 +5,7 @@ from tornado.web import Application, HTTPError
 
 from ..google import GoogleOAuthenticator, GoogleOAuthHandler
 
-from .mocks import setup_oauth_mock, no_code_test
+from .mocks import setup_oauth_mock
 
 def user_model(email):
     """Return a user model"""
@@ -40,21 +40,22 @@ def google_client(client):
 def test_google(google_client):
     authenticator = GoogleOAuthenticator()
     handler = google_client.handler_for_user(user_model('fake@email.com'))
-    name = yield authenticator.authenticate(handler)
+    user_info = yield authenticator.authenticate(handler)
+    assert sorted(user_info) == ['auth_state', 'name']
+    name = user_info['name']
     assert name == 'fake@email.com'
+    auth_state = user_info['auth_state']
+    assert 'access_token' in auth_state
+    assert 'google_user' in auth_state
 
-
-@mark.gen_test
-def test_no_code(google_client):
-    yield no_code_test(GoogleOAuthenticator())
 
 
 @mark.gen_test
 def test_hosted_domain(google_client):
     authenticator = GoogleOAuthenticator(hosted_domain='email.com')
     handler = google_client.handler_for_user(user_model('fake@email.com'))#, authenticator)
-    # result = yield handler.get()
-    name = yield authenticator.authenticate(handler)
+    user_info = yield authenticator.authenticate(handler)
+    name = user_info['name']
     assert name == 'fake'
 
     handler = google_client.handler_for_user(user_model('notallowed@notemail.com'))

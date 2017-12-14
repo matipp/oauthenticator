@@ -5,7 +5,7 @@ from pytest import fixture, mark
 
 from ..bitbucket import BitbucketOAuthenticator
 
-from .mocks import setup_oauth_mock, no_code_test
+from .mocks import setup_oauth_mock
 
 
 def user_model(username):
@@ -28,20 +28,20 @@ def bitbucket_client(client):
 def test_bitbucket(bitbucket_client):
     authenticator = BitbucketOAuthenticator()
     handler = bitbucket_client.handler_for_user(user_model('yorba'))
-    name = yield authenticator.authenticate(handler)
+    user_info = yield authenticator.authenticate(handler)
+    assert sorted(user_info) == ['auth_state', 'name']
+    name = user_info['name']
     assert name == 'yorba'
-
-
-@mark.gen_test
-def test_no_code(bitbucket_client):
-    yield no_code_test(BitbucketOAuthenticator())
+    auth_state = user_info['auth_state']
+    assert 'access_token' in auth_state
+    assert 'bitbucket_user' in auth_state
 
 
 @mark.gen_test
 def test_team_whitelist(bitbucket_client):
     client = bitbucket_client
     authenticator = BitbucketOAuthenticator()
-    authenticator.team_whitelist = ['blue']
+    authenticator.bitbucket_team_whitelist = ['blue']
 
     teams = {
         'red': ['grif', 'simmons', 'donut', 'sarge', 'lopez'],
@@ -63,7 +63,8 @@ def test_team_whitelist(bitbucket_client):
     )
 
     handler = client.handler_for_user(user_model('caboose'))
-    name = yield authenticator.authenticate(handler)
+    user_info = yield authenticator.authenticate(handler)
+    name = user_info['name']
     assert name == 'caboose'
 
     handler = client.handler_for_user(user_model('donut'))
@@ -78,9 +79,6 @@ def test_team_whitelist(bitbucket_client):
     assert name is None
 
     handler = client.handler_for_user(user_model('donut'))
-    name = yield authenticator.authenticate(handler)
+    user_info = yield authenticator.authenticate(handler)
+    name = user_info['name']
     assert name == 'donut'
-
-
-
-    

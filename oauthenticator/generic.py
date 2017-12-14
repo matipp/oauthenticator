@@ -6,6 +6,7 @@ Custom Authenticator to use generic OAuth2 with JupyterHub
 import json
 import os
 import base64
+import urllib
 
 from tornado.auth import OAuth2Mixin
 from tornado import gen, web
@@ -31,7 +32,10 @@ class GenericLoginHandler(OAuthLoginHandler, GenericEnvMixin):
 
 class GenericOAuthenticator(OAuthenticator):
 
-    login_service = "GenericOAuth2"
+    login_service = Unicode(
+        "GenericOAuth2",
+        config=True
+    )
 
     login_handler = GenericLoginHandler
 
@@ -64,9 +68,7 @@ class GenericOAuthenticator(OAuthenticator):
 
     @gen.coroutine
     def authenticate(self, handler, data=None):
-        code = handler.get_argument("code", False)
-        if not code:
-            raise web.HTTPError(400, "oauth callback made without a token")
+        code = handler.get_argument("code")
         # TODO: Configure the curl_httpclient for tornado
         http_client = AsyncHTTPClient()
 
@@ -76,7 +78,7 @@ class GenericOAuthenticator(OAuthenticator):
             grant_type='authorization_code'
         )
 
-        url = url_concat(self.token_url, params)
+        url = self.token_url
 
         b64key = base64.b64encode(
             bytes(
@@ -93,7 +95,7 @@ class GenericOAuthenticator(OAuthenticator):
         req = HTTPRequest(url,
                           method="POST",
                           headers=headers,
-                          body=''  # Body is required for a POST...
+                          body=urllib.parse.urlencode(params)  # Body is required for a POST...
                           )
 
         resp = yield http_client.fetch(req)
@@ -118,8 +120,17 @@ class GenericOAuthenticator(OAuthenticator):
         resp = yield http_client.fetch(req)
         resp_json = json.loads(resp.body.decode('utf8', 'replace'))
 
-        if resp_json.get(self.username_key):
-            return resp_json[self.username_key]
+        if not resp_json.get(self.username_key):
+            self.log.error("OAuth user contains no key %s: %s", self.username_key, resp_json)
+            return
+
+        return {
+            'name': resp_json.get(self.username_key),
+            'auth_state': {
+                'access_token': access_token,
+                'oauth_user': resp_json,
+            }
+        }
 
 
 class LocalGenericOAuthenticator(LocalAuthenticator, GenericOAuthenticator):

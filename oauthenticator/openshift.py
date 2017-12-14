@@ -39,10 +39,7 @@ class OpenShiftOAuthenticator(OAuthenticator):
 
     @gen.coroutine
     def authenticate(self, handler, data=None):
-        code = handler.get_argument("code", False)
-        if not code:
-            raise web.HTTPError(400, "oauth callback made without a token")
-
+        code = handler.get_argument("code")
         # TODO: Configure the curl_httpclient for tornado
         http_client = AsyncHTTPClient()
 
@@ -86,7 +83,14 @@ class OpenShiftOAuthenticator(OAuthenticator):
         resp = yield http_client.fetch(req)
         resp_json = json.loads(resp.body.decode('utf8', 'replace'))
 
-        return resp_json["metadata"]["name"]
+        return {
+            'name': resp_json['metadata']['name'],
+            'auth_state': {
+                'access_token': access_token,
+                'openshift_user': resp_json,
+            }
+        }
+
 
 class LocalOpenShiftOAuthenticator(LocalAuthenticator, OpenShiftOAuthenticator):
 

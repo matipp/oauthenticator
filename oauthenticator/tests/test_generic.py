@@ -2,7 +2,7 @@ from pytest import fixture, mark
 
 from ..generic import GenericOAuthenticator
 
-from .mocks import setup_oauth_mock, no_code_test
+from .mocks import setup_oauth_mock
 
 
 def user_model(username):
@@ -30,10 +30,12 @@ def generic_client(client):
 def test_generic(generic_client):
     authenticator = Authenticator()
     handler = generic_client.handler_for_user(user_model('wash'))
-    name = yield authenticator.authenticate(handler)
+    user_info = yield authenticator.authenticate(handler)
+    assert sorted(user_info) == ['auth_state', 'name']
+    name = user_info['name']
     assert name == 'wash'
+    auth_state = user_info['auth_state']
+    assert 'access_token' in auth_state
+    assert 'oauth_user' in auth_state
 
 
-@mark.gen_test
-def test_no_code(generic_client):
-    yield no_code_test(Authenticator())

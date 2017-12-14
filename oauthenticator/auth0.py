@@ -59,9 +59,7 @@ class Auth0OAuthenticator(OAuthenticator):
     
     @gen.coroutine
     def authenticate(self, handler, data=None):
-        code = handler.get_argument("code", False)
-        if not code:
-            raise web.HTTPError(400, "oauth callback made without a token")
+        code = handler.get_argument("code")
         # TODO: Configure the curl_httpclient for tornado
         http_client = AsyncHTTPClient()
 
@@ -97,7 +95,13 @@ class Auth0OAuthenticator(OAuthenticator):
         resp = yield http_client.fetch(req)
         resp_json = json.loads(resp.body.decode('utf8', 'replace'))
 
-        return resp_json["email"]
+        return {
+            'name': resp_json["email"],
+            'auth_state': {
+                'access_token': access_token,
+                'auth0_user': resp_json,
+            }
+        }
 
 
 class LocalAuth0OAuthenticator(LocalAuthenticator, Auth0OAuthenticator):
